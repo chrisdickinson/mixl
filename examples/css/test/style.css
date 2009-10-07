@@ -9,5 +9,6 @@
     +#sans;
     +a;
     color:<orange>;
+    /* since inner_orange was defined in a child import, it won't be around up here */
     background-color:<inner_orange>;
 }

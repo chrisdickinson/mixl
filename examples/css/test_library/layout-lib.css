@@ -1,6 +1,6 @@
+/* the +a; shouldn't find anything, since a { } is declared in another file */
 .default-padding {
-    /* this shouldn't find anything */
-    +.a;
+    +a;
     padding:6px 8px; 
 }
 
