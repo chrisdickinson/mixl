@@ -8,6 +8,14 @@ MIXIN_MATCH = re.compile(r'\+(?P<mixin_name>.*);')
 CONTEXT_MATCH = re.compile(r'(?P<context_name><[a-zA-Z0-9\-_]+>)')
 
 class ParserReference(object):
+    """
+        ParserReference(<filename>, <silent>)
+            An object that describes the importation of another parser unit into the current
+            parser's context.
+
+            Lazy-loads a parser object when a rule needs to be looked up, or this parser relation
+            isn't silent (needs to be outputted with the parent parser's output)
+    """
     is_silent = False
     filename = None
     parser_object = None
@@ -32,6 +40,20 @@ class ParserReference(object):
         return self.parser_object.output()
 
 class Parser(object):
+    """
+        Parser(string, context, paths, commands)
+            <string>    -> should be the contents of the mixl css file
+            <context>   -> a dict containing a map between variable names and replacements
+            <paths>     -> where to look when importing other mixl files
+            <commands>  -> a list of command objects
+
+            The Parser object handles the parsing and output of mixl css strings.
+            It breaks the string into Rule objects (which may contain Mixin objects that reference other Rule names),
+            and attempts to look for preprocessor commands when initialized.
+
+            * the parser_ref wonkiness is due to some strangeness in persistance when pickling
+    """
+
     paths = ['./']
     def __init__(self, string, context={}, paths=[], commands=MIXL_DEFAULT_COMMANDS):
         if paths is not None:
@@ -60,11 +82,24 @@ class Parser(object):
         raise NoSuchRule
 
     def process_command(self, command):
+        """
+            process_command(self, <command string>):
+                attempt to find a Command object that
+                will respond to this command string.
+        """
         for registered_command in self.commands:
             if registered_command.match(command):
                 registered_command.function(self, command)
 
     def parse_block(self, for_block):
+        """
+            parse_block(self, for_block):
+                called for every css block encountered during the call to "parse(...)"
+                looks for mixins and variable replacements, and creates a Rule
+                object (with lazy-loaded Mixin list and variables replaced by
+                literals)
+        """
+
         lines = for_block.split("\n")
         lines_out = []
         mixins = []
@@ -85,6 +120,16 @@ class Parser(object):
         return ' '.join(context_processed_lines), mixins 
 
     def parse(self, contents):
+        """
+            parse(self, contents):
+                the dumb-as-rocks parser workhorse. knows only two modes,
+                "look for a rule", and "finish this rule's block".
+                when in "look for a rule" mode, it will also pay attention to
+                preprocessor commands.
+
+                returns a list of rules.
+        """
+
         file_length = len(contents)
         i = 0
         BLOCK_SEARCH = 0
