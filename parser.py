@@ -1,7 +1,7 @@
 import re
 from elements import *
 from commands import MIXL_DEFAULT_COMMANDS
-from mixl_exceptions import NoSuchRule
+from mixl_exceptions import NoSuchRule, CommandSyntaxError
 
 MIXL_COMMAND_CHAR = '%'
 MIXIN_MATCH = re.compile(r'\+(?P<mixin_name>.*);')
@@ -90,6 +90,8 @@ class Parser(object):
         for registered_command in self.commands:
             if registered_command.match(command):
                 registered_command.function(self, command)
+                return
+        raise CommandSyntaxError
 
     def parse_block(self, for_block):
         """
@@ -144,7 +146,7 @@ class Parser(object):
         last_char = None
         while i < file_length:
             char = contents[i]
-            if mode == BLOCK_SEARCH and last_char in ("\n", None) and char == MIXL_COMMAND_CHAR:
+            if mode == BLOCK_SEARCH and last_char in ("\n",' ', "\t", None) and char == MIXL_COMMAND_CHAR:
                 line_end = contents.find('\n', i+1)
                 cmd = contents[i+1:line_end]
                 self.process_command(cmd)
