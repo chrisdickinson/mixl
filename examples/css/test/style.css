@@ -1,0 +1,13 @@
+%define orange:#FFCC00
+%define border_style:3px solid #FF000
+%import "font-lib.css" silently 
+%import "layout-lib.css" silently
+%import "reset.css"
+
+.header {
+    +.default-padding;
+    +#sans;
+    +a;
+    color:<orange>;
+    background-color:<inner_orange>;
+}

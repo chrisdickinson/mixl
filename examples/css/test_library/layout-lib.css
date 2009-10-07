@@ -1,0 +1,13 @@
+.default-padding {
+    /* this shouldn't find anything */
+    +.a;
+    padding:6px 8px; 
+}
+
+
+.blockstyle {
+    display:inline-block;
+    color:<orange>;
+}
+
+%define inner_orange:#5C4D20
