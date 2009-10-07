@@ -1,0 +1,6 @@
+.hg
+*.swo
+*.swp
+*.db
+*.pyc
+*.cssc
