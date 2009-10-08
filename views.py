@@ -3,6 +3,7 @@ from parser import Parser
 from django.conf import settings
 from utils import mixl_import
 from django.http import HttpResponse, Http404
+from django.conf import settings
 
 def mixl_css(request, filename):
     """
@@ -17,7 +18,10 @@ def mixl_css(request, filename):
     """
     paths = getattr(settings, 'MIXL_PATHS', ['./'])
     try:
-        parser = mixl_import(filename, paths)
+        context = {
+            'MEDIA_URL':settings.MEDIA_URL
+        }
+        parser = mixl_import(filename, paths, context=context)
         output = parser.output()
         if output is None:
             raise Http404

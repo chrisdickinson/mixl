@@ -27,6 +27,7 @@ class ParserReference(object):
     def load_parser_object(self, parent_parser):
         from utils import mixl_import
         parser_object = mixl_import(self.filename, parent_parser.paths, commands=parent_parser.commands, context=parent_parser.context)
+        parser_object.is_silent = self.is_silent
         return parser_object
 
     def find_rule(self, name, parent_parser):
@@ -38,6 +39,10 @@ class ParserReference(object):
         if self.parser_object is None:
             self.parser_object = self.load_parser_object(parent_parser)
         return self.parser_object.output()
+
+class ParserState(object):
+    rules = []
+    index = None
 
 class Parser(object):
     """
@@ -62,6 +67,7 @@ class Parser(object):
         self.commands = commands
         self.parser_refs = []
         self.rules = self.parse(string)
+        self.is_silent = False
 
     def register_parser(self, parser_filename, silent):
         self.parser_refs.append(ParserReference(parser_filename, silent))
@@ -81,7 +87,7 @@ class Parser(object):
                 pass
         raise NoSuchRule
 
-    def process_command(self, command):
+    def process_command(self, command, state):
         """
             process_command(self, <command string>):
                 attempt to find a Command object that
@@ -89,7 +95,7 @@ class Parser(object):
         """
         for registered_command in self.commands:
             if registered_command.match(command):
-                registered_command.function(self, command)
+                registered_command.function(self, command, state)
                 return
         raise CommandSyntaxError
 
@@ -133,7 +139,6 @@ class Parser(object):
         """
 
         file_length = len(contents)
-        i = 0
         BLOCK_SEARCH = 0
         BLOCK_FINISH = 1
         mode = BLOCK_SEARCH
@@ -141,33 +146,34 @@ class Parser(object):
         search_start = 0
         block_start = 0
         name = ""
-
-        rules = [] 
         last_char = None
-        while i < file_length:
-            char = contents[i]
+
+        state = ParserState()
+        state.index = 0 
+        while state.index < file_length:
+            char = contents[state.index]
             if mode == BLOCK_SEARCH and last_char in ("\n",' ', "\t", None) and char == MIXL_COMMAND_CHAR:
-                line_end = contents.find('\n', i+1)
-                cmd = contents[i+1:line_end]
-                self.process_command(cmd)
-                i += line_end - i
-                search_start = i
+                line_end = contents.find('\n', state.index+1)
+                cmd = contents[state.index+1:line_end]
+                self.process_command(cmd, state)
+                state.index += line_end - state.index 
+                search_start = state.index
                 continue
             elif mode == BLOCK_SEARCH:
                 if char == '{':
-                    name = contents[search_start:i]
-                    block_start = i+1
+                    name = contents[search_start:state.index]
+                    block_start = state.index+1
                     mode = BLOCK_FINISH
             elif mode == BLOCK_FINISH:
                 if char == '}':
-                    search_start = i+1
-                    block = contents[block_start:i]
+                    search_start = state.index+1
+                    block = contents[block_start:state.index]
                     block, mixins = self.parse_block(block)
-                    rules.append(Rule(name, block, mixins))
+                    state.rules.append(Rule(name, block, mixins))
                     mode = BLOCK_SEARCH
-            i += 1
+            state.index += 1
             last_char = char
-        return rules
+        return state.rules
 
     def output(self):
         output = ''
