@@ -53,13 +53,13 @@ def mixl_define(template, state, command):
 def mixl_synth_rules(template, state, command):
     match = MIXL_SYNTH_RULES_REGEX.match(command)
     if match is not None:
-        rules = []
         matches = match.groupdict()
         class_name_base = matches['class_name']
         block = matches['block']
         variable_name = matches['variable_name']
         variable_list = matches['variable_list'].strip().split(' ')
         old_variable_value = None
+
         if variable_name in state.context.keys():
             old_variable_value = state.context[variable_name]
 
@@ -67,9 +67,9 @@ def mixl_synth_rules(template, state, command):
             if variable not in state.context.keys():
                 continue
             state.context[variable_name] = state.context[variable]
-
             rule_name = "%s%s" % (class_name_base, variable)
             new_rule = MixlRuleNode(rule_name, block)
+            new_rule.block = new_rule.parse_block(template, state)
             state.visit(template, new_rule)
         if old_variable_value is not None:
             state.context[variable_name] = old_variable_value
