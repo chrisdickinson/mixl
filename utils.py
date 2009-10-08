@@ -1,4 +1,6 @@
+import pickle
 import os
+
 def mixl_find_file(filename, paths=[]):
     """
         mixl_find_file(<filename str>, <paths list>)
@@ -39,8 +41,8 @@ def mixl_import(filename, paths, **kwargs):
 
             returns parser on success, throws IOError on failure
     """
-    from parser import Parser
-    import pickle 
+    from parser import parse
+    from template import MixlTemplate
     found_file = mixl_find_file(filename, paths)
     if found_file is None:
         raise IOError()
@@ -52,15 +54,19 @@ def mixl_import(filename, paths, **kwargs):
         pickled_mtime = os.path.getmtime(pickled_file)
         if plain_mtime < pickled_mtime:
             pickled_file_object = open(pickled_file, 'rb')
-            parser = pickle.load(pickled_file_object)
+            template = pickle.load(pickled_file_object)
             pickled_file_object.close()
-            return parser
+            return template 
+        else:
+            os.remove(pickled_file)
+            return mixl_import(filename, paths, **kwargs)
+
     file = open(found_file)
     file_contents = ''.join([line for line in file])
     file.close()
 
-    parser = Parser(file_contents, paths=paths, **kwargs)
+    template = MixlTemplate(parse(file_contents), paths)
     pickled_file_object = open(pickled_file, 'wb')
-    pickle.dump(parser, pickled_file_object)
+    pickle.dump(template, pickled_file_object)
     pickled_file_object.close()
-    return parser
+    return template 

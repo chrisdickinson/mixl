@@ -1,42 +1,64 @@
 import re
 from mixl_exceptions import *
+from utils import mixl_import
 
-class Rule(object):
-    """
-        Rule(name, block, mixins, do_output)
-            the internal representation of a CSS rule
-            mixins are lazily referenced, and not looked up
-            until the rule is actually required to output itself
-    """
-    def __init__(self, name, block, mixins, do_output=True):
+CONTEXT_MATCH = re.compile(r'(?P<context_name><[a-zA-Z0-9\-_]+>)')
+
+class MixlNode(object):
+    def __init__(self):
+        pass
+
+    def visit(self, template, state):
+        return ''
+
+class MixlRuleNode(MixlNode):
+    def __str__(self):
+        return "<MixlRuleNode: %s>" % self.name
+
+    def __init__(self, name, block):
         self.name = name.strip()
-        self.block = block.strip()
-        self.mixins = mixins
-        self.do_output = do_output
+        self.block = block
 
-    def output(self):
-        if self.do_output:
-            return "%s { %s %s }\n" % (self.name, ' '.join([mixin.output() for mixin in self.mixins]), self.block)
-        return '' 
+    def parse_block(self, template, state):
+        block_statements = [line.strip() for line in self.block.split(';')]
+        output = []
+        def context_matcher(matchobj):
+            name = matchobj.group()[1:-1]
+            if name in state.context.keys():
+                return state.context[name]
+            return ''
 
-class Mixin(object):
-    """
-        Mixin(parser, reference_name)
-            mixins search from the parser where they originated from,
-            extending from that parser into children parsers.
+        for block_statement in block_statements:
+            if len(block_statement) < 1:
+                continue
+            elif block_statement[0] == '+':
+                try: 
+                    rule = state.lookup_rule(block_statement[1:])
+                    output.append(rule.parse_block(template, state))
+                except NoSuchRule:
+                    output.append('/* ERROR: no such rule %s */' % block_statement[1:])
+            elif '<' in block_statement:
+                output.append(CONTEXT_MATCH.sub(context_matcher, block_statement)) 
+            else:
+                output.append(block_statement)
+        return ';  '.join(output)
 
-            their reference_name references a Rule's name.
-    """
-    def __init__(self, parser, reference_name):
-        self.reference_name = reference_name
-        self.parser = parser
+    def visit(self, template, state):
+        return '%s { %s }' % (self.name, self.parse_block(template, state))
 
-    def output(self):
+class MixlCommandNode(MixlNode):
+    def __init__(self, command_string):
+        self.command_string = command_string
+
+    def visit(self, template, state):
+        command = state.get_command(self.command_string)
+        output = ''
+
         try:
-            rule = self.parser.find_rule(self.reference_name)
-            return rule.block
-        except NoSuchRule:
-            return '/* unknown mixin %s */' % self.reference_name
+            output = command(template, state, self.command_string)
+        except Exception, e:
+            pass
+        return output
 
 class Command(object):
     """

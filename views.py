@@ -1,5 +1,4 @@
 # Create your views here.
-from parser import Parser
 from django.conf import settings
 from utils import mixl_import
 from django.http import HttpResponse, Http404
@@ -17,14 +16,14 @@ def mixl_css(request, filename):
             your mixl css files into your MEDIA_ROOT.
     """
     paths = getattr(settings, 'MIXL_PATHS', ['./'])
-    try:
-        context = {
-            'MEDIA_URL':settings.MEDIA_URL
-        }
-        parser = mixl_import(filename, paths, context=context)
-        output = parser.output()
-        if output is None:
-            raise Http404
-    except IOError:
-        raise Http404
+    #try:
+    context = {
+        'MEDIA_URL':settings.MEDIA_URL
+    }
+    template = mixl_import(filename, paths, context=context)
+    output = template.output(context)
+    #if output is None:
+    #    raise Http404
+    #except IOError:
+    #    raise Http404
     return HttpResponse(content=output, mimetype='text/css', status=200)
