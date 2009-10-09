@@ -24,16 +24,14 @@ class MixlRuleNode(MixlNode):
         output = []
         def context_matcher(matchobj):
             name = matchobj.group()[1:-1]
-            if name in state.context.keys():
-                return state.context[name]
-            return ''
+            return state.get_value(name)
 
         for block_statement in block_statements:
             if len(block_statement) < 1:
                 continue
             elif block_statement[0] == '+':
                 try: 
-                    rule = state.lookup_rule(block_statement[1:])
+                    rule = state.lookup_rule(block_statement[1:], lambda x,y: x==y)
                     output.append(rule.parse_block(template, state))
                 except NoSuchRule:
                     output.append('/* ERROR: no such rule %s */' % block_statement[1:])
@@ -41,7 +39,7 @@ class MixlRuleNode(MixlNode):
                 output.append(CONTEXT_MATCH.sub(context_matcher, block_statement)) 
             else:
                 output.append(block_statement)
-        return ';  '.join(output)
+        return ';  '.join(output) + ';'
 
     def visit(self, template, state):
         return '%s { %s }' % (self.name, self.parse_block(template, state))

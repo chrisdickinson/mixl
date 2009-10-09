@@ -1,67 +1,143 @@
 from django.test import TestCase
-from parser import Parser, ParserReference
 from elements import *
-from exceptions import *
+from mixl_exceptions import *
+from commands import *
+from template import *
+from parser import *
 
 class ParserTests(TestCase):
     def test_unclosed_brace(self):
         unclosed_brace_end = "a { color:red; } b {background:red;"
-        parser = Parser(unclosed_brace_end)
-        self.assertEqual(parser.output(), "a {  color:red; }\n")
         unclosed_brace_begin = "} a { color:red; }"
 
-        parser = Parser(unclosed_brace_begin)
-        self.assertEqual(parser.output(), "} a {  color:red; }\n")
+        end_results = parse(unclosed_brace_end)
+        begin_results = parse(unclosed_brace_begin)
+        
+        self.assertEqual(len(end_results), 1)
+        self.assertEqual(len(begin_results), 1)
+        self.assertTrue(isinstance(end_results[0], MixlRuleNode))
+        self.assertTrue(isinstance(begin_results[0], MixlRuleNode))
+        self.assertEqual(getattr(begin_results[0], 'name', None), '} a')
+        self.assertEqual(getattr(end_results[0], 'name', None), 'a')
 
-    def test_variable_insertion(self):
-        variable_insertion = "a {color:<var>;}"
-        variable_insertion_no_result = "a {color:<undefined_var>;}"
-        variable_insertion_outside_of_block = "<var> a {color:#FF0000;}"
-        variable_dict = {
-            'var':'#FFF',
+    def test_create_nodes(self):
+        node_test = """
+            %cmd_node
+            rule_node { }
+        """
+        results = parse(node_test)
+        self.assertEqual(len(results), 2)
+        self.assertTrue(isinstance(results[0], MixlCommandNode))
+        self.assertEqual(getattr(results[0], 'command_string', None), 'cmd_node')
+        self.assertTrue(isinstance(results[1], MixlRuleNode))
+        self.assertEqual(getattr(results[1], 'name', None), 'rule_node')
+        self.assertEqual(getattr(results[1], 'block', None), ' ')
+
+class TemplateStateTests(TestCase):
+    def test_get_command(self):
+        pass
+
+    def test_visit_node(self):
+        pass
+
+    def test_lookup_rule(self):
+        pass
+
+class TemplateTests(TestCase):
+    pass
+
+class CommandTests(TestCase):
+    def test_command_import(self):
+        bad_command = 'import gary busey poorly'
+        good_command = 'import "test.css"'
+        good_command_silently = 'import "test.css" silently'
+        good_command_no_file = 'import "dne.css"'
+        
+        expected_triggers = {
+            'register_reference': [],
+            'visit': [],
         }
-        parser_tests = [
-            (Parser(variable_insertion, context=variable_dict),                                 "a {  color:#FFF; }\n"),
-            (Parser(variable_insertion_no_result, context=variable_dict),                       "a {  color:; }\n"),
-            (Parser(variable_insertion_outside_of_block, context=variable_dict),                "<var> a {  color:#FF0000; }\n"),
+
+        class MockTemplate(MixlTemplate):
+            def register_reference(self, filename):
+                expected_triggers['register_reference'].append(True)
+                return super(MockTemplate, self).register_reference(state)
+            def visit(self, state):
+                expected_triggers['visit'].append(True)
+                return super(MockTemplate, self).visit(state)
+        def mock_mixl_import_good(filename, paths):
+            return MockTemplate([MixlRuleNode('a', 'background: red;'),], paths)
+        template = MockTemplate([], [])
+        state = MixlRenderState({}, MIXL_DEFAULT_COMMANDS) 
+
+        self.assertRaises(CommandSyntaxError, mixl_command_import, template=template, state=state, command=bad_command)
+        good_results = mixl_command_import(template, state, good_command, mock_mixl_import_good)
+        good_results_silently = mixl_command_import(template, state, good_command_silently, mock_mixl_import_good)
+        self.assertRaises(IOError, mixl_command_import, template,state,good_command_no_file)
+        self.assertEqual(len(expected_triggers['register_reference']), 3)
+        self.assertEqual(len(expected_triggers['visit']), 2)
+        self.assertEqual(good_results, 'a { background: red; }')
+        self.assertEqual(good_results_silently, '')
+
+    def test_command_define(self):
+        bad_command = 'define asdf'
+        good_command = 'define asdf:asdf'
+        expected_triggers = {
+            'define':[],
+        }
+        class MockTemplateState(MixlRenderState):
+            def define(self, var, value):
+                expected_triggers['define'].append(True)
+                return super(MockTemplateState, self).define(var, value)
+        template = MixlTemplate([], [])
+        self.assertRaises(CommandSyntaxError, mixl_define, template, MockTemplateState({}, MIXL_DEFAULT_COMMANDS), bad_command)
+        mock_state = MockTemplateState({}, MIXL_DEFAULT_COMMANDS)
+        mixl_define(template, mock_state, good_command)
+        self.assertEqual(len(expected_triggers['define']), 1)
+        self.assertEqual(mock_state.get_value('asdf'), 'asdf')
+        self.assertEqual(mock_state.get_value('dne'), '')
+
+    def test_command_synth_rules(self):
+        pass
+
+class RenderStateTests(TestCase):
+    def test_get_command(self):
+        expected_triggers = {
+            'cmd_matcher':[],
+        }
+        def simple_cmd(template, state, command):
+            return ''
+        def cmd_matcher(test):
+            expected_triggers['cmd_matcher'].append(True)
+            return test.startswith('complex') 
+        cmd = Command('simple', simple_cmd)
+        complex_cmd = Command('complex_match', simple_cmd, cmd_matcher)
+        state = MixlRenderState({}, [cmd, complex_cmd])
+        self.assertEqual(state.get_command('simple'), simple_cmd)
+        self.assertRaises(CommandSyntaxError, state.get_command, 'sim')
+        self.assertEqual(state.get_command('complex'), simple_cmd)
+        self.assertEqual(len(expected_triggers['cmd_matcher']), 2) 
+
+    def test_lookup_rule(self):
+        expected_triggers = {
+            'match_function':[],
+        }
+        def match_function(lhs, rhs):
+            expected_triggers['match_function'] = True
+            return lhs == rhs 
+
+        rule_list = [
+            MixlRuleNode('name1', 'block1'),
+            MixlRuleNode('name2', 'block2'),
         ]
 
-        for parser, result in parser_tests:
-            self.assertEqual(parser.output(), result)
+        state = MixlRenderState({}, [])
+        template = MixlTemplate(rule_list, [])
+        template.visit(state)
 
-    def test_command_execution(self):
-        output_value = False
-        def cmd(parser, command):
-            output_value = True
-        commands = (Command('flag', cmd), )
-        test_command_executes = """
-            %flag
-            a { color:red; }
-        """
-        test_command_fails = """
-            %does_not_exist
-            a { color:red; }
-        """
-        parser = Parser(test_command_executes, commands=commands)
-        result = "a {  color:red; }\n"
-        self.assertEqual(parser.output(), result)
-        self.assertRaises(CommandSyntaxError, Parser, string=test_command_fails, commands=commands)
-
-    def test_lookup_rules(self):
-        rule_parse = ".rule { color:red; }"
-        parser = Parser(rule_parse)
-        rule = parser.find_rule('.rule')
-        self.assertEqual(rule.block, "color:red;")
-        self.assertEqual(rule.name, ".rule")
-        self.assertRaises(NoSuchRule, parser.find_rule, '.does-not-exist')
-        parser_ref = ParserReference('fake-file.css', silent=False)
-        parser_ref.parser_object = Parser(".subparser-rule { color:red; }")
-        parser.parser_refs = [parser_ref,]
-        rule = parser.find_rule('.subparser-rule')
-        self.assertEqual(rule.block, 'color:red;')
-        self.assertEqual(rule.name, '.subparser-rule')
-
-    def test_empty_string(self):
-        empty_string = ""
-        parser = Parser(empty_string)
-        self.assertEqual(parser.output(), "")
+        default_match = lambda x,y: x==y
+        self.assertEqual(state.lookup_rule('name1', default_match), rule_list[0])
+        self.assertEqual(state.lookup_rule('name2', default_match), rule_list[1])
+        self.assertEqual(state.lookup_rule('name2', match_function), rule_list[1])
+        self.assertEqual(expected_triggers['match_function'], True)
+        self.assertRaises(NoSuchRule, state.lookup_rule, 'name3', default_match)

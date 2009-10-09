@@ -1,5 +1,5 @@
 from elements import MixlRuleNode
-from mixl_exceptions import NoSuchRule 
+from mixl_exceptions import NoSuchRule, CommandSyntaxError 
 from commands import MIXL_DEFAULT_COMMANDS
 from utils import mixl_import
 
@@ -17,6 +17,14 @@ class MixlRenderState(object):
             self.visited_nodes[node] = node.visit(template, self)
         return self.visited_nodes[node]
 
+    def get_value(self, var):
+        if var in self.context.keys():
+            return self.context[var]
+        return ''
+
+    def define(self, var, value):
+        self.context.update({var:value})
+
     def get_command(self, command):
         """
             process_command(self, <command string>):
@@ -28,8 +36,7 @@ class MixlRenderState(object):
                 return registered_command.function
         raise CommandSyntaxError
 
-    def lookup_rule(self, rule_name, match_function=None):
-        match_function = lambda x,y:x==y
+    def lookup_rule(self, rule_name, match_function):
         for node in self.visited_nodes.keys():
             if isinstance(node, MixlRuleNode) and match_function(node.name, rule_name):
                 return node

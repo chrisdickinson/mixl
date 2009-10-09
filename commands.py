@@ -6,7 +6,7 @@ from mixl_exceptions import CommandSyntaxError
 MIXL_IMPORT_REGEX = re.compile('import "(?P<filename>.+?)"( (?P<silently>silently)?)?')
 MIXL_DEFINE_REGEX = re.compile('define (?P<variable_name>[\w\-]+)\s*:(?P<value>.*)')
 MIXL_SYNTH_RULES_REGEX = re.compile('synth-rules (?P<class_name>.+) with \{(?P<block>.+)\} for (?P<variable_name>\w+) in \[(?P<variable_list>.*)\]')
-def mixl_command_import(template, state, command):
+def mixl_command_import(template, state, command, import_cmd=mixl_import):
     """
         in mixl:
             %import "example.css"
@@ -23,7 +23,7 @@ def mixl_command_import(template, state, command):
         filename = matches['filename']
         silently = matches['silently'] is not None
         template.register_reference(filename)
-        reference_template = mixl_import(filename, template.paths)
+        reference_template = import_cmd(filename, template.paths)
         results = reference_template.visit(state)
         if not silently:
             output = '\n'.join(results)
@@ -45,7 +45,7 @@ def mixl_define(template, state, command):
         matches = match.groupdict()
         var_name = matches['variable_name']
         value = matches['value']
-        state.context.update({var_name:value})    
+        state.define(var_name, value)
     else:
         raise CommandSyntaxError()
     return ''

@@ -6,7 +6,7 @@ MIXL_COMMAND_CHAR = '%'
 
 def parse(contents):
     """
-        parse(self, contents):
+        parse(contents):
             the dumb-as-rocks parser workhorse. knows only two modes,
             "look for a rule", and "finish this rule's block".
             when in "look for a rule" mode, it will also pay attention to
